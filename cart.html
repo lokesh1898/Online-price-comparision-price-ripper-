@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cart - PriceRipper</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="theme-toggle">
+        <button class="theme-button" id="themeToggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+    <div class="profile-bar">
+        <div class="profile-icon" id="profileIcon">
+            <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="profile-dropdown" id="profileDropdown">
+            <div class="profile-name" id="profileName">Guest</div>
+            <div class="profile-email" id="profileEmail">Not logged in</div>
+            <button class="logout-btn" id="logoutBtn" style="display:none;">Logout</button>
+            <a href="login.html" class="form-link" id="loginLink">Login</a>
+            <a href="register.html" class="form-link" id="registerLink">Register</a>
+        </div>
+    </div>
+    <div class="main-header-card">
+        <div class="main-logo">
+            <img src="https://cdn-icons-png.flaticon.com/512/1170/1170678.png" alt="Cart Logo">
+        </div>
+        <div class="main-title">PriceRipper</div>
+        <div class="main-subtitle">Your AI-powered price tracker and smart shopping assistant</div>
+    </div>
+    <div class="nav-bar">
+        <a href="index.html" class="tab-button">Search Results</a>
+        <a href="wishlist.html" class="tab-button"><i class="fas fa-heart"></i> My Wishlist</a>
+        <button class="active tab-button"><i class="fas fa-shopping-cart"></i> My Cart</button>
+    </div>
+    <main class="main-content container">
+        <section class="card">
+            <div class="cart-header">
+                <h1 class="section-title"><i class="fas fa-shopping-cart"></i> My Cart</h1>
+            </div>
+            <section id="cartContainer" class="cart-grid"></section>
+        </section>
+    </main>
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <!-- Custom Modal for Set Alert -->
+    <div id="setAlertModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Set Price Alert</h3>
+            <p>You will be notified via email if the price drops to or below this value.</p>
+            <label for="alertPriceInput">Set Alert Price:</label>
+            <input type="number" id="alertPriceInput" placeholder="Enter price" step="0.01" min="0">
+            <div class="modal-buttons">
+                <button class="modal-btn confirm" id="confirmSetAlertBtn">Set Alert</button>
+                <button class="modal-btn cancel" id="cancelSetAlertBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 PriceRipper. All rights reserved.</p>
+            <div class="social-links">
+                <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+            </div>
+        </div>
+    </footer>
+    <script>
+    let currentUserId = localStorage.getItem('smartspend_userId');
+    if (!currentUserId) {
+        currentUserId = 'user_' + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('smartspend_userId', currentUserId);
+    }
+
+    // Theme Toggle Logic
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const currentTheme = localStorage.getItem('theme');
+
+    if (currentTheme) {
+        document.body.classList.add(currentTheme);
+        themeToggleBtn.innerHTML = currentTheme === 'dark-theme' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    } else {
+        document.body.classList.add('light-theme'); // Default to light theme
+        themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+        if (document.body.classList.contains('light-theme')) {
+            document.body.classList.remove('light-theme');
+            document.body.classList.add('dark-theme');
+            localStorage.setItem('theme', 'dark-theme');
+            themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+        } else {
+            document.body.classList.remove('dark-theme');
+            document.body.classList.add('light-theme');
+            localStorage.setItem('theme', 'light-theme');
+            themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+        }
+    });
+
+    function showNotification(message, type = 'info') {
+        const container = document.getElementById('notificationContainer');
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            </div>
+            <button class="notification-close" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        container.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000); // Increased duration
+    }
+
+    async function fetchCart() {
+        const cartContainer = document.getElementById('cartContainer');
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            cartContainer.innerHTML = `<div class="empty-cart"><i class="fas fa-user-circle"></i><h2>Please Log In</h2><p>Log in to view and manage your cart.</p><a href="login.html" class="back-to-search">Go to Login</a></div>`;
+            return;
+        }
+
+        try {
+            cartContainer.innerHTML = `<div class="loading-spinner"><div class="spinner"></div><p>Loading your cart...</p></div>`;
+            const response = await fetch(`http://localhost:3000/cart?userId=${user.id}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const products = await response.json();
+            if (!products || products.length === 0) {
+                cartContainer.innerHTML = `<div class="empty-cart"><i class="fas fa-shopping-cart"></i><h2>Your cart is empty</h2><p>Add products to your cart from the search page!</p><a href="index.html" class="back-to-search">Back to Search</a></div>`;
+                return;
+            }
+            displayCartItems(products);
+        } catch (error) {
+            console.error('Error fetching cart:', error);
+            cartContainer.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i><p>An error occurred while fetching your cart.</p><p class="error-details">${error.message}</p><button onclick="fetchCart()" class="retry-button">Retry</button></div>`;
+        }
+    }
+
+    function displayCartItems(products) {
+        const cartContainer = document.getElementById('cartContainer');
+        cartContainer.innerHTML = '';
+        products.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'cart-card';
+
+            const alertActive = item.reminder_price && item.reminder_price !== '' && item.reminder_price !== null;
+            const currentPrice = parseFloat((item.price || '0').replace(/[^0-9.]/g, ''));
+
+            card.innerHTML = `
+                <img src="${item.thumbnail || 'https://placehold.co/150x150/e0e0e0/555555?text=No+Image'}" alt="${item.title}" onerror="this.onerror=null;this.src='https://placehold.co/150x150/e0e0e0/555555?text=No+Image';">
+                <div class="product-title">${item.title}</div>
+                <div class="product-price">${item.price || 'Price Not Available'}</div>
+                <div class="product-rating">${generateRatingStars(item.rating || 0)}</div>
+                <div class="cart-actions">
+                    <button class="cart-remove-btn" onclick="removeFromCart('${item.id}')"><i class="fas fa-trash"></i> Remove</button>
+                    ${alertActive ?
+                        `<button class="alert-action-btn alert-set" data-product-id="${item.id}" data-current-price="${currentPrice}" data-reminder-price="${item.reminder_price}" onclick="unsetAlert('${item.id}')">
+                            <i class="fas fa-bell-slash"></i> Alert Set (${item.reminder_price})
+                        </button>` :
+                        `<button class="alert-action-btn" data-product-id="${item.id}" data-current-price="${currentPrice}" onclick="showSetAlertModal('${item.id}', ${currentPrice})">
+                            <i class="fas fa-bell"></i> Set Price Alert
+                        </button>`
+                    }
+                </div>
+            `;
+            cartContainer.appendChild(card);
+        });
+    }
+
+    function generateRatingStars(rating) {
+        const fullStars = Math.floor(rating);
+        const hasHalfStar = rating % 1 >= 0.5;
+        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+        let stars = '';
+        for (let i = 0; i < fullStars; i++) stars += '<i class="fas fa-star"></i>';
+        if (hasHalfStar) stars += '<i class="fas fa-star-half-alt"></i>';
+        for (let i = 0; i < emptyStars; i++) stars += '<i class="far fa-star"></i>';
+        return stars;
+    }
+
+    async function removeFromCart(productId) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            showNotification('Please login to remove items from cart.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch('http://localhost:3000/cart/remove', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, productId })
+            });
+            if (res.ok) {
+                showNotification('Item removed from cart.', 'success');
+                fetchCart(); // Refresh cart display
+            } else {
+                const errorData = await res.json();
+                showNotification(errorData.error || 'Failed to remove from cart.', 'error');
+            }
+        } catch (err) {
+            console.error('Network error removing from cart:', err);
+            showNotification('Network error. Please try again.', 'error');
+        }
+    }
+
+    // --- Custom Modal Logic for Set Alert ---
+    const setAlertModal = document.getElementById('setAlertModal');
+    const alertPriceInput = document.getElementById('alertPriceInput');
+    const confirmSetAlertBtn = document.getElementById('confirmSetAlertBtn');
+    const cancelSetAlertBtn = document.getElementById('cancelSetAlertBtn');
+    let currentProductIdForAlert = null;
+
+    function showSetAlertModal(productId, currentPrice) {
+        currentProductIdForAlert = productId;
+        alertPriceInput.value = parseFloat(currentPrice).toFixed(2); // Pre-fill with current price
+        setAlertModal.classList.add('active');
+    }
+
+    function hideSetAlertModal() {
+        setAlertModal.classList.remove('active');
+        currentProductIdForAlert = null;
+        alertPriceInput.value = '';
+    }
+
+    confirmSetAlertBtn.onclick = async () => {
+        const userPrice = parseFloat(alertPriceInput.value);
+        if (isNaN(userPrice) || userPrice <= 0) {
+            showNotification('Please enter a valid price.', 'warning');
+            return;
+        }
+        if (currentProductIdForAlert) {
+            await setAlert(currentProductIdForAlert, userPrice);
+        }
+        hideSetAlertModal();
+    };
+
+    cancelSetAlertBtn.onclick = hideSetAlertModal;
+
+    setAlertModal.addEventListener('click', (e) => {
+        if (e.target === setAlertModal) { // Close if clicked outside modal content
+            hideSetAlertModal();
+        }
+    });
+
+    async function setAlert(productId, price) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            showNotification('Please login to set alerts.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch('http://localhost:3000/cart/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, productId, reminderPrice: price })
+            });
+            if (res.ok) {
+                showNotification(`Alert set for ${price}! You will get an email if the price drops.`, 'success');
+                fetchCart(); // Refresh cart display to update button state
+            } else {
+                const errorData = await res.json();
+                showNotification(errorData.error || 'Failed to set alert.', 'error');
+            }
+        } catch (err) {
+            console.error('Network error setting alert:', err);
+            showNotification('Network error. Please try again.', 'error');
+        }
+    }
+
+    async function unsetAlert(productId) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            showNotification('Please login to unset alerts.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch('http://localhost:3000/cart/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, productId, reminderPrice: null })
+            });
+            if (res.ok) {
+                showNotification('Alert unset.', 'success');
+                fetchCart(); // Refresh cart display to update button state
+            } else {
+                const errorData = await res.json();
+                showNotification(errorData.error || 'Failed to unset alert.', 'error');
+            }
+        } catch (err) {
+            console.error('Network error unsetting alert:', err);
+            showNotification('Network error. Please try again.', 'error');
+        }
+    }
+
+    // Profile dropdown logic
+    const profileIcon = document.getElementById('profileIcon');
+    const profileDropdown = document.getElementById('profileDropdown');
+    const profileName = document.getElementById('profileName');
+    const profileEmail = document.getElementById('profileEmail');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const loginLink = document.getElementById('loginLink');
+    const registerLink = document.getElementById('registerLink');
+
+    function updateProfileUI() {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user) {
+            profileName.textContent = user.name;
+            profileEmail.textContent = user.email;
+            logoutBtn.style.display = 'block';
+            loginLink.style.display = 'none';
+            registerLink.style.display = 'none';
+        } else {
+            profileName.textContent = 'Guest';
+            profileEmail.textContent = 'Not logged in';
+            logoutBtn.style.display = 'none';
+            loginLink.style.display = 'block';
+            registerLink.style.display = 'block';
+        }
+    }
+    updateProfileUI();
+
+    profileIcon.onclick = function() {
+        profileDropdown.classList.toggle('active');
+    };
+    document.addEventListener('click', function(e) {
+        if (!profileIcon.contains(e.target) && !profileDropdown.contains(e.target)) {
+            profileDropdown.classList.remove('active');
+        }
+    });
+    logoutBtn.onclick = function() {
+        localStorage.removeItem('user');
+        updateProfileUI();
+        window.location.reload();
+    };
+
+    document.addEventListener('DOMContentLoaded', fetchCart);
+    </script>
+</body>
+</html>

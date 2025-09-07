@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PriceRipper - Smart Shopping Advisor</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="theme-toggle">
+        <button class="theme-button" id="themeToggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+    <div class="profile-bar">
+        <div class="profile-icon" id="profileIcon">
+            <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="profile-dropdown" id="profileDropdown">
+            <div class="profile-name" id="profileName">Guest</div>
+            <div class="profile-email" id="profileEmail">Not logged in</div>
+            <button class="logout-btn" id="logoutBtn" style="display:none;">Logout</button>
+            <a href="login.html" class="form-link" id="loginLink">Login</a>
+            <a href="register.html" class="form-link" id="registerLink">Register</a>
+        </div>
+    </div>
+    <div class="main-header-card">
+        <div class="main-logo">
+            <img src="https://cdn-icons-png.flaticon.com/512/1170/1170678.png" alt="Cart Logo">
+        </div>
+        <div class="main-title">PriceRipper</div>
+        <div class="main-subtitle">Your AI-powered price tracker and smart shopping assistant</div>
+    </div>
+    <div class="nav-bar">
+        <button class="active tab-button" onclick="showSection('search')">Search Results</button>
+        <a href="wishlist.html" class="tab-button">
+            <i class="fas fa-heart"></i> My Wishlist
+            <span id="wishlistCount" class="notification-badge">0</span>
+        </a>
+        <a href="cart.html" class="tab-button">
+            <i class="fas fa-shopping-cart"></i> My Cart
+        </a>
+    </div>
+    <main class="main-content container">
+        <section class="search-section card">
+            <div class="search-input-group">
+                <input id="productInput" type="text" placeholder="Search by text (e.g., 'Samsung Galaxy S25')" />
+                <label for="imageUpload" class="upload-button">
+                    <i class="fas fa-camera"></i> Upload Image
+                    <input type="file" id="imageUpload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                </label>
+                <button onclick="searchProduct()" class="search-button">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+            <div id="imageFileName" class="image-file-name"></div>
+        </section>
+        <section id="searchResultsSection" class="results-section active-section">
+            <div class="info-message initial-message">
+                <i class="fas fa-info-circle"></i> Enter a product name or upload an image to start comparing prices!
+            </div>
+        </section>
+    </main>
+    <div id="notificationContainer" class="notification-container"></div>
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 PriceRipper. All rights reserved.</p>
+            <div class="social-links">
+                <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+            </div>
+        </div>
+    </footer>
+    <script>
+        let uploadedImageFile = null;
+        let currentUserId = localStorage.getItem('smartspend_userId');
+        if (!currentUserId) {
+            currentUserId = 'user_' + Math.random().toString(36).substring(2, 15); // Simple unique ID
+            localStorage.setItem('smartspend_userId', currentUserId);
+            console.log('Generated new user ID:', currentUserId);
+        } else {
+            console.log('Using existing user ID:', currentUserId);
+        }
+
+        // Theme Toggle Logic
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme) {
+            document.body.classList.add(currentTheme);
+            themeToggleBtn.innerHTML = currentTheme === 'dark-theme' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+        } else {
+            document.body.classList.add('light-theme'); // Default to light theme
+            themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+        }
+
+        themeToggleBtn.addEventListener('click', () => {
+            if (document.body.classList.contains('light-theme')) {
+                document.body.classList.remove('light-theme');
+                document.body.classList.add('dark-theme');
+                localStorage.setItem('theme', 'dark-theme');
+                themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                document.body.classList.remove('dark-theme');
+                document.body.classList.add('light-theme');
+                localStorage.setItem('theme', 'light-theme');
+                themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.active-section').forEach(sec => sec.classList.remove('active-section'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(sectionId + 'Section').classList.add('active-section');
+            const targetButton = document.querySelector(`.tab-button[onclick="showSection('${sectionId}')"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                uploadedImageFile = file;
+                document.getElementById('imageFileName').textContent = `Image selected: ${file.name}`;
+                document.getElementById('productInput').value = ''; // Clear text input if image is uploaded
+            } else {
+                uploadedImageFile = null;
+                document.getElementById('imageFileName').textContent = '';
+            }
+        }
+
+        async function searchProduct() {
+            const query = document.getElementById('productInput').value.trim();
+            const resultsContainer = document.getElementById('searchResultsSection');
+
+            if (!query && !uploadedImageFile) {
+                resultsContainer.innerHTML = '<div class="info-message"><i class="fas fa-exclamation-triangle"></i> Please enter a product name or upload an image to search.</div>';
+                return;
+            }
+
+            resultsContainer.innerHTML = `
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <p>Searching for the best prices...</p>
+                </div>
+            `;
+
+            try {
+                let response;
+                let retryCount = 0;
+                const maxRetries = 2;
+
+                while (retryCount <= maxRetries) {
+                    try {
+                        if (uploadedImageFile) {
+                            const formData = new FormData();
+                            formData.append('image', uploadedImageFile);
+                            response = await fetch(`http://localhost:3000/search-by-image`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                        } else {
+                            response = await fetch(`http://localhost:3000/search?q=${encodeURIComponent(query)}`);
+                        }
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('Received data:', data); // Debug log
+
+                        // Validate the response data
+                        if (!data || !Array.isArray(data)) {
+                            console.error('Invalid data format:', data); // Debug log
+                            throw new Error('Invalid response format from server');
+                        }
+
+                        // Process the results
+                        resultsContainer.innerHTML = ''; // Clear loading message
+
+                        if (data.length > 0) {
+                            console.log('Received and processing', data.length, 'products.'); // Debug log
+                            
+                            // Filter out any invalid items
+                            const validProducts = data.filter(item => {
+                                if (!item || typeof item !== 'object' || !item.title || !item.price) {
+                                    console.log('Skipping invalid item:', item); // Debug log
+                                    return false;
+                                }
+                                return true;
+                            });
+
+                            console.log('Found', validProducts.length, ' valid products after basic validation.'); // Debug log
+
+                            const searchQuery = query.toLowerCase().trim();
+
+                            // Improved relevance filtering
+                            const relevantProducts = validProducts.filter(item => {
+                                const itemTitle = (item.title || '').toLowerCase();
+                                // Check if the title contains any word from the search query
+                                const searchWords = searchQuery.split(' ').filter(word => word.length > 0); // Filter out empty strings
+                                return searchWords.some(word => itemTitle.includes(word));
+                            });
+
+                            console.log('Found', relevantProducts.length, ' relevant products for sorting.'); // Debug log
+
+                            // Improved Sorting Logic:
+                            // 1. Number of matching words (higher priority)
+                            // 2. Exact title match
+                            // 3. Title starts with search query
+                            // 4. Price ascending
+                            relevantProducts.sort((a, b) => {
+                                const titleA = (a.title || '').toLowerCase().trim();
+                                const titleB = (b.title || '').toLowerCase().trim();
+                                const searchWords = searchQuery.split(' ').filter(word => word.length > 0);
+
+                                // Count matching words
+                                const aMatchCount = searchWords.filter(word => titleA.includes(word)).length;
+                                const bMatchCount = searchWords.filter(word => titleB.includes(word)).length;
+
+                                if (aMatchCount !== bMatchCount) {
+                                    return bMatchCount - aMatchCount; // Higher match count first
+                                }
+
+                                // Exact match check
+                                const aIsExact = titleA === searchQuery;
+                                const bIsExact = titleB === searchQuery;
+                                if (aIsExact !== bIsExact) {
+                                    return aIsExact ? -1 : 1;
+                                }
+
+                                // Starts with check
+                                const aStartsWith = titleA.startsWith(searchQuery);
+                                const bStartsWith = titleB.startsWith(searchQuery);
+                                if (aStartsWith !== bStartsWith) {
+                                    return aStartsWith ? -1 : 1;
+                                }
+
+                                // Price comparison
+                                const priceA = parseFloat((a.price || '0').replace(/[^0-9.]/g, ''));
+                                const priceB = parseFloat((b.price || '0').replace(/[^0-9.]/g, ''));
+
+                                if (isNaN(priceA) && isNaN(priceB)) return 0;
+                                if (isNaN(priceA)) return 1;
+                                if (isNaN(priceB)) return -1;
+
+                                return priceA - priceB;
+                            });
+
+                            console.log('Relevant products sorted:', relevantProducts.map(p => p.title)); // Debug log sorted titles
+
+                            // Display all relevant and sorted products
+                            const productsToDisplay = relevantProducts; // Display ALL relevant products
+
+                            console.log('Displaying', productsToDisplay.length, 'products.'); // Debug log
+
+                            if (productsToDisplay.length > 0) {
+                                const resultsSection = document.createElement('div');
+                                resultsSection.className = 'search-results-list'; 
+                                
+                                // Update the title to reflect the search query and total count
+                                resultsSection.innerHTML = `
+                                    <h2 class="section-title">
+                                        <i class="fas fa-search-plus"></i>
+                                        Results for "${query}"
+                                        <span class="results-count">(${productsToDisplay.length} prices found)</span>
+                                    </h2>
+                                    <div class="products-container">
+                                        ${productsToDisplay.map(item => {
+                                            console.log('Creating card for:', item.title); // Debug log
+                                            return createProductCard(item);
+                                        }).join('')}
+                                    </div>
+                                `;
+                                
+                                resultsContainer.appendChild(resultsSection);
+                                
+                                // Force a reflow to ensure the content is rendered
+                                resultsContainer.offsetHeight;
+                                
+                            } else {
+                                // This case is for when no products contain the search query at all
+                                resultsContainer.innerHTML = `
+                                    <div class="info-message">
+                                        <i class="fas fa-search"></i>
+                                        No products found matching "${query}". Try a different search term.
+                                    </div>
+                                `;
+                                console.log('No products found matching the query after initial filter.');
+                            }
+                        } else {
+                            resultsContainer.innerHTML = `
+                                <div class="info-message">
+                                    <i class="fas fa-search"></i>
+                                    No products found from the server for "${query}". Try a different search term.
+                                </div>
+                            `;
+                            console.log('No data received from server.');
+                        }
+                        
+                        // If we get here, the request and basic processing was successful
+                        break;
+                    } catch (error) {
+                        console.error(`Attempt ${retryCount + 1} failed:`, error);
+                        retryCount++;
+                        
+                        if (retryCount > maxRetries) {
+                            throw error;
+                        }
+                        
+                        // Wait before retrying (exponential backoff)
+                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+                    }
+                }
+
+                // Clear search state
+                uploadedImageFile = null;
+                document.getElementById('imageFileName').textContent = '';
+                document.getElementById('imageUpload').value = '';
+
+            } catch (error) {
+                console.error('Error fetching product data:', error);
+                resultsContainer.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> 
+                        ${error.message || 'An error occurred while fetching data. Please try again.'}
+                        <br><br>
+                        <small>Make sure the server is running at http://localhost:3000</small>
+                        <button onclick="searchProduct()" class="retry-button">
+                            <i class="fas fa-redo"></i> Retry Search
+                        </button>
+                    </div>`;
+            }
+        }
+
+        function createProductCard(item) {
+            const title = (item.title || 'Product Title Not Available').trim();
+            const price = (item.price || 'Price Not Available').trim();
+            const image = item.thumbnail || 'https://placehold.co/150x150/e0e0e0/555555?text=No+Image';
+            const link = item.link || '#';
+            const prediction = item.prediction || 'neutral';
+            const rating = parseFloat(item.rating) || 0;
+            const source = (item.source || 'Source Not Available').trim();
+            const productId = item.id || '';
+
+            // Add class based on prediction for styling
+            let predictionClass = '';
+            if (prediction === 'buy') {
+                predictionClass = 'prediction-buy';
+            } else if (prediction === 'wait') {
+                predictionClass = 'prediction-wait';
+            } else {
+                predictionClass = 'prediction-neutral';
+            }
+
+            return `
+                <div class="product-card">
+                    <div class="product-image-wrapper">
+                        <img src="${image}" alt="${title}" onerror="this.onerror=null;this.src='https://placehold.co/150x150/e0e0e0/555555?text=No+Image';">
+                    </div>
+                    <div class="product-details">
+                        <div class="product-info">
+                            <h3 class="product-title" title="${title}">${title}</h3>
+                            <div class="product-rating">
+                                ${generateRatingStars(rating)}
+                                <span class="rating-value">
+                                    ${rating.toFixed(1)}
+                                </span>
+                            </div>
+                            <p class="product-price-display">Price: <span class="price-value">${price}</span></p>
+                            <p class="product-source">From: ${source}</p>
+                            <div class="prediction-info ${predictionClass}">
+                                <i class="fas ${getPredictionIcon(prediction)}"></i>
+                                Price Prediction: ${prediction.charAt(0).toUpperCase() + prediction.slice(1)}
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <a href="${link}" target="_blank" rel="noopener noreferrer" class="buy-button">
+                                <i class="fas fa-external-link-alt"></i> Buy Now
+                            </a>
+                            <button class="wishlist-button" onclick="addToWishlist('${productId}', '${encodeURIComponent(title)}')">
+                                <i class="fas fa-heart"></i> Add to Wishlist
+                            </button>
+                            <button class="cart-btn-main" onclick="addToCart('${productId}', '${encodeURIComponent(title)}')">
+                                <i class="fas fa-shopping-cart"></i> Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getPredictionIcon(prediction) {
+            switch (prediction) {
+                case 'buy': return 'fa-arrow-down';
+                case 'wait': return 'fa-arrow-up';
+                default: return 'fa-minus';
+            }
+        }
+
+        function generateRatingStars(rating) {
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 >= 0.5;
+            const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+            let stars = '';
+            for (let i = 0; i < fullStars; i++) {
+                stars += '<i class="fas fa-star"></i>';
+            }
+            if (hasHalfStar) {
+                stars += '<i class="fas fa-star-half-alt"></i>';
+            }
+            for (let i = 0; i < emptyStars; i++) {
+                stars += '<i class="far fa-star"></i>';
+            }
+            return stars;
+        }
+
+        async function updateWishlistCount() {
+            try {
+                const user = JSON.parse(localStorage.getItem('user'));
+                if (!user) {
+                    document.getElementById('wishlistCount').textContent = '0';
+                    return;
+                }
+                const response = await fetch(`http://localhost:3000/wishlist?userId=${user.id}`);
+                const products = await response.json();
+                const count = products.error ? 0 : products.length;
+                document.getElementById('wishlistCount').textContent = count;
+            } catch (error) {
+                console.error('Error updating wishlist count:', error);
+                document.getElementById('wishlistCount').textContent = '0';
+            }
+        }
+
+        async function addToWishlist(productId, productTitleEncoded) {
+            const productTitle = decodeURIComponent(productTitleEncoded);
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user) {
+                showNotification('Please login to add to wishlist.', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('http://localhost:3000/wishlist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.id, productId: productId })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showNotification(`Added "${productTitle}" to your wishlist!`, 'success');
+                    updateWishlistCount();
+                } else {
+                    showNotification(data.error || 'Failed to add to wishlist', 'error');
+                }
+            } catch (error) {
+                console.error('Error adding to wishlist:', error);
+                showNotification('Failed to add to wishlist. Please try again.', 'error');
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <i class="fas ${getNotificationIcon(type)}"></i>
+                    <span>${message}</span>
+                </div>
+                <button class="notification-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            container.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+
+        function getNotificationIcon(type) {
+            switch (type) {
+                case 'success': return 'fa-check-circle';
+                case 'error': return 'fa-exclamation-circle';
+                case 'warning': return 'fa-exclamation-triangle';
+                default: return 'fa-info-circle';
+            }
+        }
+
+        // Initialize theme and wishlist count on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user) {
+                // If not logged in, redirect to login page
+                window.location.href = 'login.html';
+                return;
+            }
+            updateWishlistCount();
+            updateProfileUI();
+        });
+
+        // Profile dropdown logic
+        const profileIcon = document.getElementById('profileIcon');
+        const profileDropdown = document.getElementById('profileDropdown');
+        const profileName = document.getElementById('profileName');
+        const profileEmail = document.getElementById('profileEmail');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+
+        function updateProfileUI() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user) {
+                profileName.textContent = user.name;
+                profileEmail.textContent = user.email;
+                logoutBtn.style.display = 'block';
+                loginLink.style.display = 'none';
+                registerLink.style.display = 'none';
+            } else {
+                profileName.textContent = 'Guest';
+                profileEmail.textContent = 'Not logged in';
+                logoutBtn.style.display = 'none';
+                loginLink.style.display = 'block';
+                registerLink.style.display = 'block';
+            }
+        }
+        updateProfileUI();
+
+        profileIcon.onclick = function() {
+            profileDropdown.classList.toggle('active');
+        };
+        document.addEventListener('click', function(e) {
+            if (!profileIcon.contains(e.target) && !profileDropdown.contains(e.target)) {
+                profileDropdown.classList.remove('active');
+            }
+        });
+        logoutBtn.onclick = function() {
+            localStorage.removeItem('user');
+            updateProfileUI();
+            window.location.reload();
+        };
+
+        // --- Cart Functionality ---
+        async function addToCart(productId, productTitleEncoded) {
+            const productTitle = decodeURIComponent(productTitleEncoded);
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user) {
+                showNotification('Please login to add to cart.', 'error');
+                return;
+            }
+            try {
+                const res = await fetch('http://localhost:3000/cart/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.id, productId })
+                });
+                if (res.ok) {
+                    showNotification(`Added "${productTitle}" to your cart!`, 'success');
+                } else {
+                    const errorData = await res.json();
+                    showNotification(errorData.error || 'Failed to add to cart.', 'error');
+                }
+            } catch (err) {
+                console.error('Network error adding to cart:', err);
+                showNotification('Network error. Please try again.', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

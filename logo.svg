@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Circle -->
+    <circle cx="100" cy="100" r="90" fill="#007bff" opacity="0.1"/>
+    
+    <!-- Main Circle -->
+    <circle cx="100" cy="100" r="70" fill="#007bff"/>
+    
+    <!-- Search Icon -->
+    <g transform="translate(60, 60) scale(0.8)">
+        <circle cx="50" cy="50" r="40" fill="none" stroke="white" stroke-width="8"/>
+        <line x1="80" y1="80" x2="100" y2="100" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    </g>
+    
+    <!-- Price Tag -->
+    <g transform="translate(100, 100) scale(0.6)">
+        <path d="M-40,-40 L40,-40 L40,40 L-40,40 Z" fill="none" stroke="white" stroke-width="8"/>
+        <text x="0" y="0" font-family="Arial" font-size="40" fill="white" text-anchor="middle" dominant-baseline="middle">$</text>
+    </g>
+    
+    <!-- AI Circuit Lines -->
+    <g stroke="white" stroke-width="3" opacity="0.5">
+        <line x1="30" y1="100" x2="50" y2="100"/>
+        <line x1="150" y1="100" x2="170" y2="100"/>
+        <line x1="100" y1="30" x2="100" y2="50"/>
+        <line x1="100" y1="150" x2="100" y2="170"/>
+    </g>
+</svg> 

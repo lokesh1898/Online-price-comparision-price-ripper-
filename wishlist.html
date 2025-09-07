@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Wishlist - PriceRipper</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="theme-toggle">
+        <button class="theme-button" id="themeToggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+    <div class="profile-bar">
+        <div class="profile-icon" id="profileIcon">
+            <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="profile-dropdown" id="profileDropdown">
+            <div class="profile-name" id="profileName">Guest</div>
+            <div class="profile-email" id="profileEmail">Not logged in</div>
+            <button class="logout-btn" id="logoutBtn" style="display:none;">Logout</button>
+            <a href="login.html" class="form-link" id="loginLink">Login</a>
+            <a href="register.html" class="form-link" id="registerLink">Register</a>
+        </div>
+    </div>
+    <div class="main-header-card">
+        <div class="main-logo">
+            <img src="https://cdn-icons-png.flaticon.com/512/1170/1170678.png" alt="Cart Logo">
+        </div>
+        <div class="main-title">PriceRipper</div>
+        <div class="main-subtitle">Your AI-powered price tracker and smart shopping assistant</div>
+    </div>
+    <div class="nav-bar">
+        <a href="index.html" class="tab-button">Search Results</a>
+        <button class="active tab-button"><i class="fas fa-heart"></i> My Wishlist <span id="wishlistCount" class="notification-badge">0</span></button>
+        <a href="cart.html" class="tab-button"><i class="fas fa-shopping-cart"></i> My Cart</a>
+    </div>
+    <main class="main-content container">
+        <section class="card">
+            <div class="wishlist-header">
+                <h1 class="section-title"><i class="fas fa-heart"></i> My Wishlist</h1>
+                <div class="wishlist-controls">
+                    <select id="sortSelect" onchange="sortWishlist()" class="sort-select">
+                        <option value="price-asc">Price: Low to High</option>
+                        <option value="price-desc">Price: High to Low</option>
+                        <option value="rating-desc">Rating: High to Low</option>
+                        <option value="name-asc">Name: A to Z</option>
+                    </select>
+                </div>
+            </div>
+            <section id="wishlistContainer" class="wishlist-grid"></section>
+        </section>
+    </main>
+    <div id="notificationContainer" class="notification-container"></div>
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 PriceRipper. All rights reserved.</p>
+            <div class="social-links">
+                <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+            </div>
+        </div>
+    </footer>
+    <script>
+    // Theme Toggle Logic
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const currentTheme = localStorage.getItem('theme');
+
+    if (currentTheme) {
+        document.body.classList.add(currentTheme);
+        themeToggleBtn.innerHTML = currentTheme === 'dark-theme' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    } else {
+        document.body.classList.add('light-theme'); // Default to light theme
+        themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+        if (document.body.classList.contains('light-theme')) {
+            document.body.classList.remove('light-theme');
+            document.body.classList.add('dark-theme');
+            localStorage.setItem('theme', 'dark-theme');
+            themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+        } else {
+            document.body.classList.remove('dark-theme');
+            document.body.classList.add('light-theme');
+            localStorage.setItem('theme', 'light-theme');
+            themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+        }
+    });
+
+    // --- Wishlist Functionality ---
+    let currentUserId = localStorage.getItem('smartspend_userId');
+    if (!currentUserId) {
+        currentUserId = 'user_' + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('smartspend_userId', currentUserId);
+    }
+
+    function showNotification(message, type = 'info') {
+        const container = document.getElementById('notificationContainer');
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            </div>
+            <button class="notification-close" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        container.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+    }
+
+    async function fetchWishlist() {
+        const wishlistContainer = document.getElementById('wishlistContainer');
+        const sortSelect = document.getElementById('sortSelect');
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            wishlistContainer.innerHTML = `<div class="empty-wishlist"><i class="fas fa-user-circle"></i><h2>Please Log In</h2><p>Log in to view and manage your wishlist.</p><a href="login.html" class="back-to-search">Go to Login</a></div>`;
+            return;
+        }
+
+        try {
+            wishlistContainer.innerHTML = `<div class="loading-spinner"><div class="spinner"></div><p>Loading your wishlist...</p></div>`;
+            const response = await fetch(`http://localhost:3000/wishlist?userId=${user.id}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            let products = await response.json();
+
+            if (!products || products.length === 0) {
+                wishlistContainer.innerHTML = `<div class="empty-wishlist"><i class="fas fa-heart-broken"></i><h2>Your wishlist is empty</h2><p>Add products from search results to your wishlist!</p><a href="index.html" class="back-to-search">Back to Search</a></div>`;
+                return;
+            }
+            
+            // Sort products based on selected option
+            sortProducts(products, sortSelect.value);
+            displayWishlistItems(products);
+            updateWishlistCount(products.length);
+
+        } catch (error) {
+            console.error('Error fetching wishlist:', error);
+            wishlistContainer.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i><p>An error occurred while fetching your wishlist.</p><p class="error-details">${error.message}</p><button onclick="fetchWishlist()" class="retry-button">Retry</button></div>`;
+        }
+    }
+
+    function sortProducts(products, sortBy) {
+        products.sort((a, b) => {
+            const priceA = parseFloat((a.price || '0').replace(/[^0-9.]/g, ''));
+            const priceB = parseFloat((b.price || '0').replace(/[^0-9.]/g, ''));
+            const ratingA = parseFloat(a.rating || 0);
+            const ratingB = parseFloat(b.rating || 0);
+            const titleA = (a.title || '').toLowerCase();
+            const titleB = (b.title || '').toLowerCase();
+
+            switch (sortBy) {
+                case 'price-asc':
+                    return priceA - priceB;
+                case 'price-desc':
+                    return priceB - priceA;
+                case 'rating-desc':
+                    return ratingB - ratingA;
+                case 'name-asc':
+                    return titleA.localeCompare(titleB);
+                default:
+                    return 0;
+            }
+        });
+    }
+
+    function displayWishlistItems(products) {
+        const wishlistContainer = document.getElementById('wishlistContainer');
+        wishlistContainer.innerHTML = '';
+        products.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'wishlist-card';
+            card.innerHTML = `
+                <div class="wishlist-image">
+                    <img src="${item.thumbnail || 'https://placehold.co/150x150/e0e0e0/555555?text=No+Image'}" alt="${item.title}" onerror="this.onerror=null;this.src='https://placehold.co/150x150/e0e0e0/555555?text=No+Image';">
+                </div>
+                <div class="wishlist-details">
+                    <div class="product-title">${item.title}</div>
+                    <div class="product-price">${item.price || 'Price Not Available'}</div>
+                    <div class="product-rating">${generateRatingStars(item.rating || 0)}</div>
+                    <div class="wishlist-actions">
+                        <button class="wishlist-remove-btn" onclick="removeFromWishlist('${item.id}')"><i class="fas fa-trash"></i> Remove</button>
+                    </div>
+                </div>
+            `;
+            wishlistContainer.appendChild(card);
+        });
+    }
+
+    function generateRatingStars(rating) {
+        const fullStars = Math.floor(rating);
+        const hasHalfStar = rating % 1 >= 0.5;
+        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+        let stars = '';
+        for (let i = 0; i < fullStars; i++) stars += '<i class="fas fa-star"></i>';
+        if (hasHalfStar) stars += '<i class="fas fa-star-half-alt"></i>';
+        for (let i = 0; i < emptyStars; i++) stars += '<i class="far fa-star"></i>';
+        return stars;
+    }
+
+    async function removeFromWishlist(productId) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+            showNotification('Please login to remove items from wishlist.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch('http://localhost:3000/wishlist/remove', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, productId })
+            });
+            if (res.ok) {
+                showNotification('Item removed from wishlist.', 'success');
+                fetchWishlist(); // Refresh wishlist display
+            } else {
+                const errorData = await res.json();
+                showNotification(errorData.error || 'Failed to remove from wishlist.', 'error');
+            }
+        } catch (err) {
+            console.error('Network error removing from wishlist:', err);
+            showNotification('Network error. Please try again.', 'error');
+        }
+    }
+
+    function sortWishlist() {
+        fetchWishlist(); // Re-fetch and re-display with new sort order
+    }
+
+    async function updateWishlistCount(count) {
+        document.getElementById('wishlistCount').textContent = count;
+    }
+
+    // Profile dropdown logic
+    const profileIcon = document.getElementById('profileIcon');
+    const profileDropdown = document.getElementById('profileDropdown');
+    const profileName = document.getElementById('profileName');
+    const profileEmail = document.getElementById('profileEmail');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const loginLink = document.getElementById('loginLink');
+    const registerLink = document.getElementById('registerLink');
+
+    function updateProfileUI() {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user) {
+            profileName.textContent = user.name;
+            profileEmail.textContent = user.email;
+            logoutBtn.style.display = 'block';
+            loginLink.style.display = 'none';
+            registerLink.style.display = 'none';
+        } else {
+            profileName.textContent = 'Guest';
+            profileEmail.textContent = 'Not logged in';
+            logoutBtn.style.display = 'none';
+            loginLink.style.display = 'block';
+            registerLink.style.display = 'block';
+        }
+    }
+    updateProfileUI();
+
+    profileIcon.onclick = function() {
+        profileDropdown.classList.toggle('active');
+    };
+    document.addEventListener('click', function(e) {
+        if (!profileIcon.contains(e.target) && !profileDropdown.contains(e.target)) {
+            profileDropdown.classList.remove('active');
+        }
+    });
+    logoutBtn.onclick = function() {
+        localStorage.removeItem('user');
+        updateProfileUI();
+        window.location.reload();
+    };
+
+    document.addEventListener('DOMContentLoaded', fetchWishlist);
+    </script>
+</body>
+</html>
